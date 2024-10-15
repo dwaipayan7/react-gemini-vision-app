@@ -4,6 +4,7 @@ const cors = require('cors');
 const app = express();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 // Google Generative AI
@@ -38,6 +39,42 @@ app.post('/upload', (req, res) => {
     const filePath = req.file ? `/public/${req.file.filename}` : null;
     return res.status(200).json({ message: 'File uploaded successfully', filePath: filePath });
   });
+});
+
+// Gemini content generation route
+app.post('/gemini', async (req, res) => {
+  try {
+    const { filePath, message } = req.body; // Get filePath and message from the request body
+
+    if (!filePath) {
+      return res.status(400).json({ message: 'File path is required' });
+    }
+
+    // Function to convert file to generative part
+    function fileToGenerativePart(path, mimeType) {
+      return {
+        inLineData: {
+          data: Buffer.from(fs.readFileSync(path)).toString("base64"),
+          mimeType
+        }
+      };
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+
+    // Generate content based on the prompt and the uploaded image
+    const result = await model.generateContent([message, fileToGenerativePart(path.join(__dirname, filePath), "image/jpeg")]);
+
+    const response = await result.response;
+    const text = response.text();
+
+    res.send(text);
+
+    console.log(message);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error generating content', error: error.message });
+  }
 });
 
 // Start server
